@@ -108,9 +108,11 @@ interface AlertTableRow {
   2. Obtener datos del endpoint de resumen y calcular en el cliente las medias y anomalías; implica definir períodos previos fuera del rango seleccionado, períodos ausentes, base cero y el comparador del umbral.
   3. Mantener el requisito bloqueado hasta acordar una solución de producto/API.
 - **Períodos sin registros:** `GET /api/metrics/summary` solo devuelve períodos presentes en sus movimientos; por tanto, un mes sin registros no viene representado como cero. Para una ventana de tres períodos consecutivos del calendario, decidir si los faltantes cuentan como cero o si se usa una secuencia de períodos con datos.
-- **Historial insuficiente:** no marcar anomalías antes de disponer de tres períodos previos completos. Es una propuesta conservadora que evita etiquetar una media parcial como media móvil de tres; requiere aprobar la política de inicio de serie.
+- **Historial insuficiente:** no presentar una media parcial como media de tres períodos. No marcar anomalías antes de disponer de tres períodos previos completos es una propuesta conservadora; requiere aprobar la política de inicio de serie.
 - **Media base cero:** el endpoint actual omite alertas cuando su baseline no es positivo. Para el cálculo móvil, definir si también se omiten alertas con media cero o se aplica otra regla; no calcular una división por cero.
-- Los tres períodos de referencia pueden preceder al inicio visible seleccionado para poder evaluar el primer período del rango. Esta propuesta preserva una ventana completa; confirmar si el filtro de fechas debe limitar también el historial de referencia.
+- Los tres períodos de referencia pueden preceder al inicio visible seleccionado para poder evaluar el primer período del rango. Esta propuesta preserva una ventana completa; confirmar si el filtro de fechas debe limitar también el historial de referencia y cómo tratar períodos parcialmente cubiertos por el rango. Decidir también si la igualdad con el umbral cuenta como alerta y cuándo redondear.
+
+La solución futura debe garantizar exactamente tres períodos anteriores, identificar sus gastos y aplicar el umbral a la media y al incremento correctos. Las alternativas anteriores no seleccionan dónde implementar el cálculo; resolver la fuente y las políticas pendientes bloquea la tabla y su estado de ausencia de anomalías.
 
 ## 3. Página comparativa B2B vs B2C
 
@@ -123,7 +125,7 @@ interface AlertTableRow {
 | `IncomeComparisonChart` | Comparar los ingresos totales de B2B y B2C para el mismo rango. |
 | `DashboardDateRangeControl` | Reutilizar el mismo componente visual del dashboard; el estado de rango se comparte entre páginas durante la sesión. |
 
-El proyecto monta actualmente un único `App` y no declara una biblioteca de routing en `frontend/package.json`. Propuesta de interfaz: navegación principal con entradas “Dashboard” y “Comparativa B2B/B2C”, conservando el rango compartido y señalando la vista activa. La URL y mecanismo de routing requieren aprobación de arquitectura; no se presupone una dependencia ni una ruta concreta.
+El proyecto monta actualmente un único `App` y no declara una biblioteca de routing en `frontend/package.json`. Propuesta de interfaz: acceso visible desde el dashboard a “Comparativa B2B/B2C” y navegación de vuelta al dashboard, conservando el rango compartido y señalando la vista activa. El mecanismo de navegación y, si corresponde, la URL requieren aprobación; no se presupone una dependencia ni una ruta concreta.
 
 ### Props propuestas
 
@@ -160,7 +162,7 @@ interface IncomeComparisonChartProps {
 - `businessType`: `B2B` o `B2C`.
 - `rows`: filas presentables derivadas de la respuesta directa `TopCategoriesResponse` y del total completo del grupo.
 - `availableCategories`: catálogo `FacetsResponse.categories`, para identificar categorías disponibles; no implica que `categories/top` acepte filtro `category`.
-- `groupIncomeTotal`: denominador de porcentaje y total de gráfico para ese grupo; `null` mientras no esté disponible o cuando la política para un grupo sin ingresos esté pendiente.
+- `groupIncomeTotal`: denominador de porcentaje y total de gráfico para ese grupo; `null` mientras no esté disponible o no pueda confirmarse. Un total `0` solo se representa cuando una fuente aprobada lo confirma para el mismo conjunto.
 - `totals`: valores para ambos grupos en el gráfico.
 - `loading` y `error`: estado visible correspondiente a las peticiones de cada sección/gráfico.
 
@@ -176,7 +178,7 @@ La página recibe además conceptualmente `dateRange: DateRangeFilter`, `facets:
 - **Sin resultados:** si la consulta top devuelve `[]`, indicar explícitamente que no hay categorías de ingreso para ese grupo/rango. No fabricar filas de importe cero a partir de facetas.
 - **Menos de cinco categorías:** mostrar las que devuelve el endpoint; `limit=5` es un máximo, no garantía de cinco resultados. No rellenar categorías ausentes con importes cero.
 - **Orden:** conservar el orden descendente por `total_amount` que genera el backend; no reordenar por porcentaje. Si se introduce una ordenación interactiva, queda fuera del requisito actual.
-- **Grupo sin ingresos:** mostrar total `0` en el gráfico y mensaje de ausencia de categorías si la respuesta está vacía. Si el total es cero, `percentageOfGroup` será `null` y la celda mostrará `—`, no `0%`, porque el porcentaje no está definido.
+- **Grupo sin ingresos:** una respuesta top vacía solo confirma que esa consulta no devolvió categorías, no que un total obtenido por separado sea cero ni que ambas respuestas compartan snapshot. Mostrar total `0` en el gráfico solo si la fuente aprobada lo confirma para el mismo conjunto; de lo contrario, mantener el total desconocido o mostrar el error correspondiente. Con total confirmado cero, se propone que `percentageOfGroup` sea `null` y la celda muestre `—`, no `0%`, porque el porcentaje no está definido; la política requiere aprobación.
 - Presentar porcentajes con un decimal mediante `formatPercent`; importes con `formatCurrency` existente. La API no declara moneda y la precisión visual de importes requiere la confirmación indicada anteriormente.
 - **Sin rango de fechas:** omitir `start_date` y `end_date`; con rango abierto, enviar solo el extremo definido. Fechas inválidas/invertidas siguen las reglas del filtro de fechas.
 
@@ -187,6 +189,7 @@ La página recibe además conceptualmente `dateRange: DateRangeFilter`, `facets:
   1. `GET /api/metrics/summary` con fechas, `operation_type=income` y `business_type`; sumar `income` de los períodos devueltos. Cada elemento es `MetricsSummaryItem` (`period`, `income`, `outcome`, `net`). Hay que decidir agrupación y precisión al sumar valores ya redondeados por período.
   2. `GET /api/metrics/b2b` o `/api/metrics/b2c` con fechas y agregar en cliente los movimientos de tipo `income`; provee el detalle, pero implica transferir más datos y no es una respuesta de total agregado.
 - Alternativamente, ampliar el contrato backend para entregar total y/o porcentaje junto a categorías. Esta alternativa cambia la API.
+- `summary` y las rutas de movimientos son fuentes adicionales posibles, no endpoints exigidos por el brief ni fuentes seleccionadas. También podría calcularse desde una sola respuesta de movimientos si se aprueba cambiar la fuente propuesta para top. Cualquier solución debe garantizar que numerador y denominador correspondan al mismo grupo, rango y conjunto de datos.
 - **Consistencia de datos verificada en código, con riesgo:** `categories/top`, `summary` y rutas de movimientos generan datos mediante `generate_mock_movements(seed=42)`. En invocaciones secuenciales el mismo día, la semilla produce el mismo conjunto simulado; las fechas se derivan de `date.today()`. Sin embargo, la función reinicia y consume el generador aleatorio global. Solicitudes concurrentes podrían intercalarse y no hay garantía de snapshot común; un cambio de día también puede cambiar el conjunto. No asumir que numerador y denominador son comparables hasta resolver/verificar este riesgo.
 - En consecuencia, ninguna fuente de denominador queda aprobada. Además del riesgo de snapshot, requieren decisión la precisión al sumar `summary` redondeados, la política para cero y la precisión monetaria visible.
 
@@ -200,8 +203,8 @@ La página recibe además conceptualmente `dateRange: DateRangeFilter`, `facets:
 ## Decisiones para revisión
 
 1. Resolver cómo satisfacer la media móvil exacta de tres períodos sin confundirla con `baseline_average`.
-2. Elegir la fuente del total B2B/B2C y cómo garantizar consistencia entre consultas; aprobar su precisión y la política para porcentajes con denominador cero.
+2. Elegir la fuente del total B2B/B2C y cómo garantizar consistencia entre numerador y denominador; aprobar su precisión y la política para porcentajes con denominador cero. Hasta entonces quedan bloqueados los porcentajes y el gráfico de totales.
 3. Decidir qué papel visual debe tener `FacetsResponse.categories` en la comparativa; la propuesta es usarlo como catálogo, no como filtro ni como fuente de filas con cero.
-4. Confirmar la regla propuesta para meses ausentes, historial insuficiente, base cero y el uso de períodos anteriores al rango filtrado en alertas.
+4. Confirmar las reglas de períodos ausentes o parciales, historial insuficiente, base cero, historial anterior al rango, comparación con el umbral y redondeo en alertas; hasta entonces quedan bloqueados el cálculo y la tabla de anomalías.
 5. Aprobar moneda y precisión de presentación; la propuesta reutiliza los formateadores existentes, cuyo display monetario es USD sin centavos.
-6. Aprobar la navegación/ruta de la nueva página; la propuesta comparte el rango seleccionado entre vistas durante la sesión.
+6. Aprobar el mecanismo de navegación y, si corresponde, la ruta de la nueva página; la propuesta comparte el rango seleccionado entre vistas durante la sesión.
