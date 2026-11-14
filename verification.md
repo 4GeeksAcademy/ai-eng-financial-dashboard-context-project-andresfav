@@ -58,3 +58,19 @@
 - Los avisos del build no tienen una causa verificada. La auditoría matizó las afirmaciones anteriores que excedían la evidencia disponible.
 
 **Conclusión:** las instrucciones se reflejan en la ubicación del cálculo, la etiqueta dinámica y las comprobaciones realizadas; esta correspondencia no demuestra por sí sola la causa de cada decisión. Las condiciones y reglas fuera del alcance indicado permanecen sin evaluar.
+
+## Proyecto SDD — Fase 1: verificación de contratos de API
+
+### Comprobaciones realizadas
+
+- Se consultó `/openapi.json` del backend activo y se contrastaron parámetros, restricciones y modelos de respuesta de `GET /api/metrics`, `/api/metrics/facets`, `/api/metrics/summary`, `/api/metrics/categories/top`, `/api/metrics/comparison`, `/api/metrics/alerts`, `/api/metrics/b2b` y `/api/metrics/b2c`. Las fechas son parámetros opcionales salvo en `comparison`, donde ambas son obligatorias. OpenAPI documenta HTTP 422 para estas rutas salvo `facets`.
+- Las respuestas reales confirmaron, entre otros ejemplos, facetas con rango `2025-11-01`–`2026-10-28`, movimientos filtrados, alertas, categorías B2B y B2C y resúmenes por grupo. `GET /api/metrics/categories/top?limit=0` devolvió HTTP 422 con un error de validación para `limit`. Los datos simulados y sus fechas pueden variar según el momento de consulta.
+- En [`App.tsx`](frontend/src/App.tsx), `fetchFinancialData` usa `fetch`, comprueba `response.ok` e interpreta JSON como movimientos; `App` gestiona carga y error. La configuración de [`vite.config.ts`](frontend/vite.config.ts) redirige `/api` a `http://backend:8000` durante el desarrollo. No se encontró un mecanismo existente para enviar parámetros de consulta.
+- Las fechas solicitadas corresponden a `start_date` y `end_date`, y el rango disponible a `MetricsFacets.min_date` y `max_date`. En alertas, el gasto agregado del período corresponde a `MetricsAlert.outcome_total`; `increase_ratio` es un ratio que debe multiplicarse por 100 para mostrarlo como porcentaje. En categorías, `TopCategoryItem.category` y `total_amount` aportan nombre y total.
+
+### Discrepancias pendientes
+
+- El PM solicita la media móvil de los **tres períodos anteriores**. La inspección de [`routes.py`](backend/app/routes.py) muestra que el backend usa la media de todos los períodos anteriores disponibles en el resumen filtrado. La solución requiere decisión; no se ha aprobado cambiar el requisito.
+- El control solicitado admite un umbral de `0.01` a `1.0`, con valor inicial `0.3`; OpenAPI declara `threshold >= 0`, sin máximo, y el mismo valor inicial. Debe distinguirse la restricción del producto de la de la API.
+- `TopCategoryItem` no incluye el porcentaje sobre los ingresos totales del grupo B2B o B2C. Quedan por decidir y verificar el origen del denominador completo, el redondeo y el tratamiento de un total cero. Facetas ofrece categorías, pero `categories/top` no declara un parámetro `category`.
+- Quedan por definir la validación de fechas invertidas y la política para períodos ausentes o historial insuficiente en el cálculo de alertas. No se implementaron funcionalidades ni se ejecutaron pruebas automatizadas en esta verificación.
