@@ -62,6 +62,25 @@ describe("computeKPIs", () => {
 });
 
 describe("computeMonthlyData", () => {
+  it("groups first-of-month ISO dates by their calendar month in a negative offset", () => {
+    const firstOfMonth: FinancialMovement = {
+      create_date: "2024-02-01",
+      amount: 100,
+      operation_type: "income",
+      category: "sales",
+      business_type: "B2B",
+    };
+
+    expect(computeMonthlyData([firstOfMonth])).toEqual([
+      {
+        month: "Feb 2024",
+        income: 100,
+        outcome: 0,
+        profitPercent: 100,
+      },
+    ]);
+  });
+
   it("returns chronological year-month points with aggregated totals", () => {
     const unsortedCrossYearMovements: FinancialMovement[] = [
       {

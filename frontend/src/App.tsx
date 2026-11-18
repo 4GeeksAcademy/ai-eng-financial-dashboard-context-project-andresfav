@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { KPIRow } from "@/components/dashboard/kpi-row";
-import { IncomeOutcomeChart } from "@/components/dashboard/income-outcome-chart";
-import { ProfitPercentChart } from "@/components/dashboard/profit-percent-chart";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { type FinancialMovement } from "@/lib/financial-types";
 import {
   computeKPIs,
@@ -11,6 +11,35 @@ import {
 } from "@/lib/financial-utils";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const IncomeOutcomeChart = lazy(() =>
+  import("@/components/dashboard/income-outcome-chart").then((module) => ({
+    default: module.IncomeOutcomeChart,
+  })),
+);
+const ProfitPercentChart = lazy(() =>
+  import("@/components/dashboard/profit-percent-chart").then((module) => ({
+    default: module.ProfitPercentChart,
+  })),
+);
+
+function ChartsLoadingFallback() {
+  return (
+    <div aria-hidden="true" className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      {[0, 1].map((chartIndex) => (
+        <Card className="border-border/60" key={chartIndex}>
+          <CardHeader className="pb-4">
+            <Skeleton className="h-5 w-52" />
+            <Skeleton className="mt-1 h-3 w-64" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-[280px] w-full rounded-lg" />
+            <Skeleton className="mt-4 h-5 w-32" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 async function fetchFinancialData(): Promise<FinancialMovement[]> {
   const response = await fetch(`${API_BASE_URL}/api/metrics`);
@@ -47,29 +76,46 @@ function App() {
     : movements
       ? (formatDateRangeLabel(movements) ?? "No data")
       : "Period unavailable";
+  const statusMessage = loading
+    ? "Loading financial data."
+    : error
+      ? ""
+      : movements?.length === 0
+        ? "No financial data available."
+        : "Financial data loaded.";
 
   return (
     <main className="dark min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-8">
+          <div className="sr-only" role="status">
+            {statusMessage}
+          </div>
           <DashboardHeader period={period} />
 
           {error ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-foreground">
+            <div
+              lang="es"
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-foreground"
+            >
               {error}
             </div>
           ) : null}
 
-          <section aria-label="Key performance indicators">
+          <section aria-label="Key performance indicators" aria-busy={loading}>
             <KPIRow metrics={metrics} loading={loading} />
           </section>
 
           <section
             aria-label="Financial charts"
+            aria-busy={loading}
             className="grid grid-cols-1 gap-4 xl:grid-cols-2"
           >
-            <IncomeOutcomeChart data={monthlyData} loading={loading} />
-            <ProfitPercentChart data={monthlyData} loading={loading} />
+            <Suspense fallback={<ChartsLoadingFallback />}>
+              <IncomeOutcomeChart data={monthlyData} loading={loading} />
+              <ProfitPercentChart data={monthlyData} loading={loading} />
+            </Suspense>
           </section>
         </div>
       </div>

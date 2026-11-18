@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { type MonthlyDataPoint } from '@/lib/financial-types'
+import { formatPercent } from '@/lib/financial-utils'
 import {
   LineChart,
   Line,
@@ -57,6 +58,7 @@ export function ProfitPercentChart({ data, loading }: ProfitPercentChartProps) {
         </CardHeader>
         <CardContent>
           <Skeleton className="h-[280px] w-full rounded-lg" />
+          <Skeleton className="mt-4 h-5 w-32" />
         </CardContent>
       </Card>
     )
@@ -107,6 +109,36 @@ export function ProfitPercentChart({ data, loading }: ProfitPercentChartProps) {
             </LineChart>
           </ResponsiveContainer>
         )}
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            View chart data
+          </summary>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <caption className="sr-only">Monthly profit margin</caption>
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2" scope="col">Month</th>
+                  <th className="px-3 py-2" scope="col">Profit margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-2 text-muted-foreground" colSpan={2}>
+                      No data available
+                    </td>
+                  </tr>
+                ) : data.map((entry) => (
+                  <tr className="border-b border-border/60 last:border-0" key={entry.month}>
+                    <th className="px-3 py-2 font-medium" scope="row">{entry.month}</th>
+                    <td className="px-3 py-2">{formatPercent(entry.profitPercent)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       </CardContent>
     </Card>
   )
