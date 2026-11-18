@@ -118,6 +118,38 @@ export function IncomeOutcomeChart({ data, loading }: IncomeOutcomeChartProps) {
             </LineChart>
           </ResponsiveContainer>
         )}
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            View chart data
+          </summary>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <caption className="sr-only">Monthly income and outcome</caption>
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2" scope="col">Month</th>
+                  <th className="px-3 py-2" scope="col">Income</th>
+                  <th className="px-3 py-2" scope="col">Outcome</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-2 text-muted-foreground" colSpan={3}>
+                      No data available
+                    </td>
+                  </tr>
+                ) : data.map((entry) => (
+                  <tr className="border-b border-border/60 last:border-0" key={entry.month}>
+                    <th className="px-3 py-2 font-medium" scope="row">{entry.month}</th>
+                    <td className="px-3 py-2">{formatCurrency(entry.income)}</td>
+                    <td className="px-3 py-2">{formatCurrency(entry.outcome)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       </CardContent>
     </Card>
   )
