@@ -58,6 +58,7 @@ export function ProfitPercentChart({ data, loading }: ProfitPercentChartProps) {
         </CardHeader>
         <CardContent>
           <Skeleton className="h-[280px] w-full rounded-lg" />
+          <Skeleton className="mt-4 h-5 w-32" />
         </CardContent>
       </Card>
     )
